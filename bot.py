@@ -5,19 +5,11 @@ from discord.ext import commands
 from discord import app_commands
 from datetime import datetime, timezone
 
-
-# =========================================================
-# НАСТРОЙКИ
-# =========================================================
-
 TOKEN = os.getenv("DISCORD_TOKEN")
 
 if not TOKEN:
-    raise RuntimeError(
-        "DISCORD_TOKEN не найден. "
-        "Добавь переменную DISCORD_TOKEN в настройках хостинга."
-    )
-
+    raise RuntimeError("DISCORD_TOKEN не найден в переменных окружения.")
+    
 GUILD_ID = 1533075462383730838
 
 MODERATION_CHANNEL_ID = 1533076060386623508
@@ -264,6 +256,15 @@ def is_moderator(member: discord.Member) -> bool:
     )
 
 
+def find_rank(input_rank: str) -> str | None:
+    """Вспомогательный поиск звания с игнорированием регистра"""
+    clean_input = input_rank.strip().lower()
+    for rank in RANK_ROLES:
+        if rank.lower() == clean_input:
+            return rank
+    return None
+
+
 def get_rank_roles(
     guild: discord.Guild,
     rank: str
@@ -278,19 +279,6 @@ def get_rank_roles(
             roles.append(role)
 
     return roles
-
-
-def get_rank_options() -> list[discord.SelectOption]:
-
-    return [
-        discord.SelectOption(
-            label=rank[:100],
-            value=rank,
-            description=f"Выберите звание «{rank}»"[:100],
-            emoji="🎖️"
-        )
-        for rank in RANK_ROLES
-    ]
 
 
 def get_embed_field(
@@ -439,71 +427,39 @@ class ApplicationModal(
         )
 
         # -----------------------------------------------------
-        # ВЫБОР ЗВАНИЯ
+        # ПОЛЯ ВВОДА (Modal поддерживает только TextInput)
         # -----------------------------------------------------
 
-        self.rank_select = discord.ui.Select(
-            custom_id="gibdd_rank_select",
-            placeholder="Выберите звание...",
-            min_values=1,
-            max_values=1,
-            options=get_rank_options(),
-            required=True
+        self.rank_input = discord.ui.TextInput(
+            label="🎖️ Звание",
+            placeholder="Пример: Лейтенант, Майор, Сержант...",
+            min_length=2,
+            max_length=50,
+            required=True,
+            style=discord.TextStyle.short
         )
 
-        # -----------------------------------------------------
-        # НОМЕР УДОСТОВЕРЕНИЯ
-        # -----------------------------------------------------
-
         self.badge_number = discord.ui.TextInput(
-            custom_id="gibdd_badge_number",
-            placeholder="Введите номер удостоверения",
+            label="🪪 Номер удостоверения",
+            placeholder="Введите номер служебного удостоверения",
             min_length=1,
             max_length=50,
             required=True,
             style=discord.TextStyle.short
         )
 
-        # -----------------------------------------------------
-        # ДОКАЗАТЕЛЬСТВО
-        # -----------------------------------------------------
-
         self.proof = discord.ui.TextInput(
-            custom_id="gibdd_proof",
+            label="📎 Док-ва, что вы сотрудник ГИБДД",
             placeholder="Ссылка или номер удостоверения",
             min_length=1,
             max_length=500,
             required=True,
-            style=discord.TextStyle.short
+            style=discord.TextStyle.paragraph
         )
 
-        # -----------------------------------------------------
-        # ДОБАВЛЯЕМ В POPUP
-        # -----------------------------------------------------
-
-        self.add_item(
-            discord.ui.Label(
-                text="🎖️ Звание",
-                description="Выберите звание сотрудника ГИБДД",
-                component=self.rank_select
-            )
-        )
-
-        self.add_item(
-            discord.ui.Label(
-                text="🪪 Номер удостоверения",
-                description="Укажите номер служебного удостоверения",
-                component=self.badge_number
-            )
-        )
-
-        self.add_item(
-            discord.ui.Label(
-                text="📎 Док-ва, что вы сотрудник ГИБДД",
-                description="Ссылка или номер удостоверения",
-                component=self.proof
-            )
-        )
+        self.add_item(self.rank_input)
+        self.add_item(self.badge_number)
+        self.add_item(self.proof)
 
     async def on_submit(
         self,
@@ -522,10 +478,11 @@ class ApplicationModal(
             return
 
         # -----------------------------------------------------
-        # ПОЛУЧАЕМ ДАННЫЕ
+        # ПОЛУЧАЕМ И ПРОВЕРЯЕМ ДАННЫЕ
         # -----------------------------------------------------
 
-        rank = self.rank_select.values[0]
+        raw_rank = str(self.rank_input.value).strip()
+        rank = find_rank(raw_rank)
 
         badge_number = str(
             self.badge_number.value
@@ -535,14 +492,13 @@ class ApplicationModal(
             self.proof.value
         ).strip()
 
-        # -----------------------------------------------------
-        # ПРОВЕРКИ
-        # -----------------------------------------------------
+        if not rank:
 
-        if rank not in RANK_ROLES:
-
+            available_ranks = ", ".join(list(RANK_ROLES.keys())[:5]) + "..."
             await interaction.response.send_message(
-                "❌ Выбрано неизвестное звание.",
+                f"❌ Неизвестное звание «**{raw_rank}**».\n"
+                f"Убедитесь, что ввели звание корректно.\n"
+                f"Доступные примеры: {available_ranks}",
                 ephemeral=True
             )
 
@@ -783,9 +739,6 @@ class RequestRoleButton(
             )
 
             return
-
-        # НИКАКОГО МЕНЮ В ЧАТЕ
-        # СРАЗУ ОТКРЫВАЕТСЯ POPUP НА ЭКРАНЕ
 
         await interaction.response.send_modal(
             ApplicationModal()
@@ -1311,7 +1264,7 @@ async def setup_roles(
             "После нажатия откроется отдельное "
             "popup-окно Discord.\n\n"
             "**В окне необходимо:**\n"
-            "🎖️ Выбрать звание\n"
+            "🎖️ Указать звание\n"
             "🪪 Указать номер удостоверения\n"
             "📎 Указать ссылку или номер удостоверения "
             "в поле «Док-ва, что вы сотрудник ГИБДД»\n\n"
@@ -1320,96 +1273,40 @@ async def setup_roles(
         color=discord.Color.gold()
     )
 
-    embed.set_footer(
-        text="Lipton | ГИБДД • Кадровая система"
-    )
-
     await interaction.channel.send(
         embed=embed,
         view=RoleRequestView()
     )
 
     await interaction.response.send_message(
-        "✅ Панель запроса роли создана.",
+        "✅ Панель запроса ролей успешно отправлена!",
         ephemeral=True
     )
 
 
 # =========================================================
-# READY
+# СОБЫТИЯ И ЗАПУСК БОТА
 # =========================================================
 
 @bot.event
 async def on_ready():
+    # Регистрация persistent-view, чтобы кнопки работали после перезапуска бота
+    bot.add_view(RoleRequestView())
+    bot.add_view(ModerationView())
 
-    if not getattr(
-        bot,
-        "_views_added",
-        False
-    ):
-
-        bot.add_view(
-            RoleRequestView()
-        )
-
-        bot.add_view(
-            ModerationView()
-        )
-
-        bot._views_added = True
-
-    guild = bot.get_guild(
-        GUILD_ID
-    )
-
-    print("=" * 60)
-    print(
-        f"✅ Бот запущен: {bot.user}"
-    )
-    print(
-        f"🆔 ID: {bot.user.id}"
-    )
-
-    if guild:
-
-        print(
-            f"✅ Сервер: {guild.name}"
-        )
-
-    else:
-
-        print(
-            "⚠️ Сервер GUILD_ID не найден."
-        )
-
+    # Синхронизируем slash-команды
     try:
 
-        synced = await bot.tree.sync(
-            guild=discord.Object(
-                id=GUILD_ID
-            )
-        )
+        guild = discord.Object(id=GUILD_ID)
+        bot.tree.copy_global_to(guild=guild)
+        await bot.tree.sync(guild=guild)
+        print(f"✅ Бот запущен под именем: {bot.user}")
+        print("✅ Команды и persistent views успешно синхронизированы.")
 
-        print(
-            f"✅ Slash-команд синхронизировано: "
-            f"{len(synced)}"
-        )
+    except Exception as e:
 
-    except Exception as error:
+        print(f"❌ Ошибка при синхронизации команд: {e}")
 
-        print(
-            f"❌ Ошибка синхронизации: {error}"
-        )
-
-    print("=" * 60)
-
-
-# =========================================================
-# ЗАПУСК ДЛЯ ХОСТИНГА
-# =========================================================
 
 if __name__ == "__main__":
-
-    bot.run(
-        TOKEN
-    )
+    bot.run(TOKEN)
