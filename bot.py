@@ -235,6 +235,7 @@ RANK_ROLES = {
 intents = discord.Intents.default()
 intents.guilds = True
 intents.members = True
+intents.message_content = True
 
 bot = commands.Bot(
     command_prefix="!",
@@ -257,7 +258,6 @@ def is_moderator(member: discord.Member) -> bool:
 
 
 def find_rank(input_rank: str) -> str | None:
-    """Вспомогательный поиск звания с игнорированием регистра"""
     clean_input = input_rank.strip().lower()
     for rank in RANK_ROLES:
         if rank.lower() == clean_input:
@@ -1126,7 +1126,6 @@ class ModerationView(discord.ui.View):
     discord.Object(id=GUILD_ID)
 )
 async def setup_roles(interaction: discord.Interaction):
-    # ПРЕДОТВРАЩАЕМ «Приложение не отвечает»: сразу подтверждаем получение команды
     await interaction.response.defer(ephemeral=True)
 
     if not isinstance(interaction.user, discord.Member):
@@ -1168,7 +1167,6 @@ async def setup_roles(interaction: discord.Interaction):
         view=RoleRequestView()
     )
 
-    # Используем followup.send вместо response.send_message
     await interaction.followup.send(
         "✅ Панель запроса ролей успешно отправлена!",
         ephemeral=True
@@ -1186,10 +1184,18 @@ async def on_ready():
 
     try:
         guild = discord.Object(id=GUILD_ID)
+        
+        # 1. Принудительно очищаем устаревшие/дублирующиеся команды с сервера
+        bot.tree.clear_commands(guild=guild)
+        
+        # 2. Копируем актуальные команды в гильдию
         bot.tree.copy_global_to(guild=guild)
-        await bot.tree.sync(guild=guild)
-        print(f"✅ Бот запущен под именем: {bot.user}")
-        print("✅ Команды и persistent views успешно синхронизированы.")
+        
+        # 3. Синхронизируем новое дерево команд с Discord API
+        synced = await bot.tree.sync(guild=guild)
+        
+        print(f"✅ Бот успешно запущен как: {bot.user}")
+        print(f"✅ Синхронизировано команд: {len(synced)}")
 
     except Exception as e:
         print(f"❌ Ошибка при синхронизации команд: {e}")
