@@ -3,33 +3,32 @@ import discord
 from discord.ext import commands
 from datetime import datetime, timezone
 
+TOKEN = (
+    os.getenv("DISCORD_TOKEN")
+    or os.getenv("BOT_TOKEN")
+    or os.getenv("TOKEN")
+)
 
-# =========================================================
-# НАСТРОЙКИ
-# =========================================================
+if not TOKEN:
+    raise RuntimeError(
+        "❌ Токен не найден. "
+        "Создай переменную окружения DISCORD_TOKEN "
+        "в панели хостинга."
+    )
 
-TOKEN = os.getenv("DISCORD_TOKEN")
-
-# Канал, куда приходят заявки
 MODERATION_CHANNEL_ID = 1533076060386623508
-
-# Канал кадрового аудита
 AUDIT_CHANNEL_ID = 1533076137209495642
-
-# Роль модератора
 MODERATOR_ROLE_ID = 1533075692785504327
 
+intents = discord.Intents.default()
+intents.guilds = True
+intents.members = True
+intents.message_content = True
 
-# =========================================================
-# РОЛИ ДЛЯ КАЖДОГО ЗВАНИЯ
-# =========================================================
-#
-# ВАЖНО:
-# В каждый список вписывай ID ролей, которые должны
-# выдаваться именно при выборе этого звания.
-#
-# Можно указать несколько ролей.
-#
+bot = commands.Bot(
+    command_prefix="!",
+    intents=intents
+)
 
 RANK_ROLES = {
 
