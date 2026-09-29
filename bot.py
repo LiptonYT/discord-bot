@@ -1,20 +1,24 @@
 import os
-import re
+from urllib.parse import urlparse
+
 import discord
 from discord.ext import commands
-from discord import app_commands
 from datetime import datetime, timezone
+
+
+# =========================================================
+# НАСТРОЙКИ
+# =========================================================
 
 TOKEN = os.getenv("DISCORD_TOKEN")
 
-if not TOKEN:
-    raise RuntimeError("DISCORD_TOKEN не найден в переменных окружения.")
-    
-GUILD_ID = 1533075462383730838
-
+# Канал, куда приходят заявки
 MODERATION_CHANNEL_ID = 1533076060386623508
+
+# Канал кадрового аудита
 AUDIT_CHANNEL_ID = 1533076137209495642
 
+# Роль модератора
 MODERATOR_ROLE_ID = 1533075692785504327
 
 
@@ -34,7 +38,6 @@ RANK_ROLES = {
         1533075845663690842,
         1533075702432403456,
     ],
-
     "Младший сержант": [
         1533075781629251735,
         1533075725983285298,
@@ -46,7 +49,6 @@ RANK_ROLES = {
         1533075845663690842,
         1533075702432403456,
     ],
-
     "Сержант": [
         1533075780312236082,
         1533075786175746108,
@@ -57,54 +59,48 @@ RANK_ROLES = {
         1533075722330046484,
         1533075702432403456,
     ],
-
     "Старший сержант": [
         1533075778399637674,
         1533075786175746108,
         1533075784858865704,
         1533075745751175299,
         1533075731054071959,
-        1533075739631550494,
         1533075722330046484,
         1533075702432403456,
+        1533075739631550494,
     ],
-
     "Старшина": [
         1533075777179095212,
         1533075786175746108,
         1533075784858865704,
         1533075745751175299,
-        1533075739631550494,
         1533075702432403456,
+        1533075739631550494,
     ],
-
     "Прапорщик": [
         1533075775777931385,
         1533075786175746108,
         1533075784858865704,
         1533075745751175299,
-        1533075739631550494,
         1533075702432403456,
+        1533075739631550494,
     ],
-
     "Ст прапорщик": [
         1533075774134026350,
         1533075786175746108,
         1533075784858865704,
         1533075745751175299,
-        1533075739631550494,
         1533075702432403456,
+        1533075739631550494,
     ],
-
     "Младший лейтенант": [
         1533075772950974474,
         1533075786175746108,
         1533075784858865704,
         1533075745751175299,
-        1533075739631550494,
         1533075702432403456,
+        1533075739631550494,
     ],
-
     "Лейтенант": [
         1533075771801866421,
         1533075786175746108,
@@ -114,62 +110,53 @@ RANK_ROLES = {
         1533075702432403456,
         1533075739631550494,
     ],
-
     "Старший лейтенант": [
         1533075769881002036,
         1533075786175746108,
         1533075784858865704,
         1533075745751175299,
-        1533075739631550494,
         1533075731054071959,
         1533075702432403456,
+        1533075739631550494,
     ],
-
     "Капитан": [
         1533075768760991934,
         1533075786175746108,
         1533075784858865704,
         1533075745751175299,
-        1533075739631550494,
         1533075731054071959,
         1533075702432403456,
+        1533075739631550494,
     ],
-
     "Майор": [
         1533075759583723681,
         1533075786175746108,
         1533075784858865704,
         1533075745751175299,
         1533075731054071959,
-        1533075739631550494,
         1533075692785504327,
         1533075702432403456,
     ],
-
     "Подполковник": [
         1533075757608337538,
         1533075786175746108,
         1533075784858865704,
         1533075745751175299,
         1533075731054071959,
-        1533075739631550494,
         1533075692785504327,
         1533075695318732941,
         1533075702432403456,
     ],
-
     "Полковник": [
         1533075756031279318,
         1533075786175746108,
         1533075784858865704,
         1533075745751175299,
         1533075731054071959,
-        1533075739631550494,
         1533075692785504327,
         1533075695318732941,
         1533075702432403456,
     ],
-
     "Генерал-майор полиции": [
         1533075648577540238,
         1533075786175746108,
@@ -184,7 +171,6 @@ RANK_ROLES = {
         1533075653887525046,
         1533075732152975431,
     ],
-
     "Генерал-лейтенант полиции": [
         1533075752512258099,
         1533075786175746108,
@@ -198,7 +184,6 @@ RANK_ROLES = {
         1533075653887525046,
         1533075732152975431,
     ],
-
     "Генерал-полковник полиции": [
         1533075750301732864,
         1533075786175746108,
@@ -211,7 +196,6 @@ RANK_ROLES = {
         1533075653887525046,
         1533075732152975431,
     ],
-
     "Генерал полиции Российской Федерации": [
         1533075748292661380,
         1533075786175746108,
@@ -244,106 +228,59 @@ bot = commands.Bot(
 
 
 # =========================================================
-# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ПРОВЕРКА МОДЕРАТОРА
 # =========================================================
 
 def is_moderator(member: discord.Member) -> bool:
-    if member.guild_permissions.administrator:
-        return True
-
-    return any(
-        role.id == MODERATOR_ROLE_ID
-        for role in member.roles
+    return (
+        member.guild_permissions.administrator
+        or any(role.id == MODERATOR_ROLE_ID for role in member.roles)
     )
 
 
-def find_rank(input_rank: str) -> str | None:
-    clean_input = input_rank.strip().lower()
-    for rank in RANK_ROLES:
-        if rank.lower() == clean_input:
-            return rank
-    return None
+# =========================================================
+# ПОЛУЧЕНИЕ РОЛЕЙ ЗВАНИЯ
+# =========================================================
 
-
-def get_rank_roles(
-    guild: discord.Guild,
-    rank: str
-) -> list[discord.Role]:
-
+def get_rank_roles(guild: discord.Guild, rank: str):
     roles = []
+    seen = set()
 
     for role_id in RANK_ROLES.get(rank, []):
         role = guild.get_role(int(role_id))
-
-        if role is not None:
+        if role is not None and role.id not in seen:
             roles.append(role)
+            seen.add(role.id)
 
     return roles
 
 
-def get_embed_field(
-    embed: discord.Embed,
-    field_name: str
-) -> str | None:
+# =========================================================
+# ПРОВЕРКА ДОКАЗАТЕЛЬСТВА
+# =========================================================
 
-    for field in embed.fields:
-        if field.name == field_name:
-            return field.value
-
-    return None
-
-
-def parse_user_id(
-    value: str | None
-) -> int | None:
+def normalize_proof(value: str) -> str:
+    value = value.strip()
 
     if not value:
-        return None
+        raise ValueError("Док-ва обязательны.")
 
-    match = re.search(
-        r"`(\d{15,25})`",
-        value
-    )
+    # Разрешаем либо ссылку, либо номер удостоверения.
+    if value.startswith(("http://", "https://")):
+        parsed = urlparse(value)
+        if parsed.scheme in ("http", "https") and parsed.netloc:
+            return value
+        raise ValueError("Укажите корректную ссылку на доказательство.")
 
-    if match:
-        return int(match.group(1))
+    # Если это не URL — считаем, что пользователь указал номер удостоверения.
+    cleaned = value.replace(" ", "").replace("-", "")
+    if not cleaned.isdigit():
+        raise ValueError(
+            "В поле док-в укажите ссылку (https://...) "
+            "или только номер удостоверения."
+        )
 
-    match = re.search(
-        r"(\d{15,25})",
-        value
-    )
-
-    if match:
-        return int(match.group(1))
-
-    return None
-
-
-def get_rank_from_embed(
-    embed: discord.Embed
-) -> str | None:
-
-    value = get_embed_field(
-        embed,
-        "🎖️ Звание"
-    )
-
-    if not value:
-        return None
-
-    clean = value.replace(
-        "**",
-        ""
-    ).strip()
-
-    if clean in RANK_ROLES:
-        return clean
-
-    for rank in RANK_ROLES:
-        if rank in clean:
-            return rank
-
-    return None
+    return value
 
 
 # =========================================================
@@ -354,26 +291,16 @@ async def send_audit(
     guild: discord.Guild,
     title: str,
     color: discord.Color,
-    fields: list[tuple[str, str, bool]]
-) -> bool:
-
-    channel = guild.get_channel(
-        AUDIT_CHANNEL_ID
-    )
+    fields: list,
+    proof: str | None = None
+):
+    channel = guild.get_channel(AUDIT_CHANNEL_ID)
 
     if channel is None:
-
         try:
-            channel = await guild.fetch_channel(
-                AUDIT_CHANNEL_ID
-            )
-
+            channel = await bot.fetch_channel(AUDIT_CHANNEL_ID)
         except Exception as error:
-
-            print(
-                f"❌ Канал аудита не найден: {error}"
-            )
-
+            print(f"❌ Канал кадрового аудита не найден: {error}")
             return False
 
     embed = discord.Embed(
@@ -383,31 +310,38 @@ async def send_audit(
     )
 
     for name, value, inline in fields:
-
         embed.add_field(
             name=name,
             value=value,
             inline=inline
         )
 
+    if proof:
+        if proof.startswith(("http://", "https://")):
+            embed.add_field(
+                name="📎 Док-ва, что сотрудник ГИБДД",
+                value=f"[Открыть доказательство]({proof})",
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="📎 Док-ва, что сотрудник ГИБДД",
+                value=f"Номер: `{proof}`",
+                inline=False
+            )
+
     embed.set_footer(
         text="Lipton | ГИБДД • Кадровый аудит"
     )
 
     try:
-
-        await channel.send(
-            embed=embed
-        )
-
+        await channel.send(embed=embed)
         return True
-
-    except Exception as error:
-
-        print(
-            f"❌ Ошибка отправки аудита: {error}"
-        )
-
+    except discord.Forbidden:
+        print("❌ У бота нет прав писать в кадровый аудит.")
+        return False
+    except discord.HTTPException as error:
+        print(f"❌ Ошибка отправки аудита: {error}")
         return False
 
 
@@ -415,174 +349,137 @@ async def send_audit(
 # POPUP — ЗАЯВКА В ГИБДД
 # =========================================================
 
-class ApplicationModal(
-    discord.ui.Modal
-):
+class ApplicationModal(discord.ui.Modal):
 
     def __init__(self):
-
         super().__init__(
-            title="📝 Заявка в ГИБДД",
+            title="🎖 Заявка на роль ГИБДД",
             timeout=300
         )
 
-        self.rank_input = discord.ui.TextInput(
-            label="🎖️ Звание",
-            placeholder="Пример: Лейтенант, Майор, Сержант...",
-            min_length=2,
-            max_length=50,
-            required=True,
-            style=discord.TextStyle.short
+        # -------------------------------------------------
+        # ЗВАНИЕ — ТОЛЬКО ВЫБОР
+        # -------------------------------------------------
+        rank_options = [
+            discord.SelectOption(
+                label=rank,
+                value=rank
+            )
+            for rank in RANK_ROLES
+        ]
+
+        self.rank_select = discord.ui.Select(
+            custom_id="gibdd_apply_rank",
+            placeholder="Выберите звание...",
+            options=rank_options,
+            min_values=1,
+            max_values=1,
+            required=True
         )
 
+        self.add_item(
+            discord.ui.Label(
+                text="🎖 Звание",
+                description="Выберите запрашиваемое звание",
+                component=self.rank_select
+            )
+        )
+
+        # -------------------------------------------------
+        # НОМЕР УДОСТОВЕРЕНИЯ — ВВОД
+        # -------------------------------------------------
         self.badge_number = discord.ui.TextInput(
-            label="🪪 Номер удостоверения",
-            placeholder="Введите номер служебного удостоверения",
+            custom_id="gibdd_badge_number",
+            placeholder="Например: 01427",
             min_length=1,
             max_length=50,
             required=True,
             style=discord.TextStyle.short
         )
 
+        self.add_item(
+            discord.ui.Label(
+                text="🪪 Номер удостоверения",
+                description="Укажите номер своего удостоверения ГИБДД",
+                component=self.badge_number
+            )
+        )
+
+        # -------------------------------------------------
+        # ДОКАЗАТЕЛЬСТВО — ССЫЛКА ИЛИ НОМЕР
+        # -------------------------------------------------
         self.proof = discord.ui.TextInput(
-            label="📎 Док-ва, что вы сотрудник ГИБДД",
-            placeholder="Ссылка или номер удостоверения",
+            custom_id="gibdd_proof",
+            placeholder="Ссылка на документ или номер удостоверения",
             min_length=1,
             max_length=500,
             required=True,
             style=discord.TextStyle.paragraph
         )
 
-        self.add_item(self.rank_input)
-        self.add_item(self.badge_number)
-        self.add_item(self.proof)
-
-    async def on_submit(
-        self,
-        interaction: discord.Interaction
-    ):
-
-        guild = interaction.guild
-
-        if guild is None:
-
-            await interaction.response.send_message(
-                "❌ Заявку можно подать только на сервере.",
-                ephemeral=True
+        self.add_item(
+            discord.ui.Label(
+                text="📎 Док-ва, что вы сотрудник ГИБДД",
+                description="Укажите ссылку на документ или номер удостоверения. Фото отправлять не нужно.",
+                component=self.proof
             )
-
-            return
-
-        raw_rank = str(self.rank_input.value).strip()
-        rank = find_rank(raw_rank)
-
-        badge_number = str(
-            self.badge_number.value
-        ).strip()
-
-        proof = str(
-            self.proof.value
-        ).strip()
-
-        if not rank:
-
-            available_ranks = ", ".join(list(RANK_ROLES.keys())[:5]) + "..."
-            await interaction.response.send_message(
-                f"❌ Неизвестное звание «**{raw_rank}**».\n"
-                f"Убедитесь, что ввели звание корректно.\n"
-                f"Доступные примеры: {available_ranks}",
-                ephemeral=True
-            )
-
-            return
-
-        if not badge_number:
-
-            await interaction.response.send_message(
-                "❌ Номер удостоверения обязателен.",
-                ephemeral=True
-            )
-
-            return
-
-        if not proof:
-
-            await interaction.response.send_message(
-                "❌ Укажите ссылку или номер удостоверения.",
-                ephemeral=True
-            )
-
-            return
-
-        rank_roles = get_rank_roles(
-            guild,
-            rank
         )
 
-        if not rank_roles:
-
+    async def on_submit(self, interaction: discord.Interaction):
+        if interaction.guild is None:
             await interaction.response.send_message(
-                f"❌ Для звания **{rank}** роли не найдены.",
+                "❌ Заявка доступна только на сервере.",
                 ephemeral=True
             )
-
             return
 
-        moderation_channel = guild.get_channel(
+        if not isinstance(interaction.user, discord.Member):
+            await interaction.response.send_message(
+                "❌ Не удалось определить участника сервера.",
+                ephemeral=True
+            )
+            return
+
+        rank = self.rank_select.values[0]
+        badge_number = str(self.badge_number.value).strip()
+
+        try:
+            proof = normalize_proof(str(self.proof.value))
+        except ValueError as error:
+            await interaction.response.send_message(
+                f"❌ {error}",
+                ephemeral=True
+            )
+            return
+
+        moderation_channel = interaction.guild.get_channel(
             MODERATION_CHANNEL_ID
         )
 
         if moderation_channel is None:
-
             try:
-
-                moderation_channel = await guild.fetch_channel(
+                moderation_channel = await bot.fetch_channel(
                     MODERATION_CHANNEL_ID
                 )
-
             except Exception:
-
-                moderation_channel = None
-
-        if moderation_channel is None:
-
-            await interaction.response.send_message(
-                "❌ Канал заявок не найден.",
-                ephemeral=True
-            )
-
-            return
-
-        bot_member = guild.me
-
-        if bot_member is None:
-
-            await interaction.response.send_message(
-                "❌ Не удалось определить бота.",
-                ephemeral=True
-            )
-
-            return
-
-        impossible_roles = [
-            role
-            for role in rank_roles
-            if role >= bot_member.top_role
-        ]
-
-        if impossible_roles:
-
-            await interaction.response.send_message(
-                "❌ Бот не может выдать следующие роли:\n\n"
-                + "\n".join(
-                    f"• **{role.name}**"
-                    for role in impossible_roles
+                await interaction.response.send_message(
+                    "❌ Канал для заявок не найден.",
+                    ephemeral=True
                 )
-                + "\n\n"
-                "Подними роль бота выше ролей ГИБДД.",
+                return
+
+        rank_roles = get_rank_roles(
+            interaction.guild,
+            rank
+        )
+
+        if not rank_roles:
+            await interaction.response.send_message(
+                "❌ Для выбранного звания не найдены роли.\n\n"
+                f"🎖 Звание: **{rank}**\n"
+                "Проверьте ID ролей в `RANK_ROLES`.",
                 ephemeral=True
             )
-
             return
 
         roles_text = "\n".join(
@@ -593,9 +490,8 @@ class ApplicationModal(
         embed = discord.Embed(
             title="📝 НОВАЯ ЗАЯВКА В ГИБДД",
             description=(
-                "Поступила новая заявка на получение роли.\n\n"
-                "Проверьте данные кандидата и примите "
-                "или отклоните заявку."
+                "Проверьте данные кандидата.\n\n"
+                "Заявка оформлена через приватное popup-окно Discord."
             ),
             color=discord.Color.gold(),
             timestamp=datetime.now(timezone.utc)
@@ -611,7 +507,7 @@ class ApplicationModal(
         )
 
         embed.add_field(
-            name="🎖️ Звание",
+            name="🎖 Звание",
             value=f"**{rank}**",
             inline=True
         )
@@ -623,87 +519,85 @@ class ApplicationModal(
         )
 
         embed.add_field(
-            name="📎 Док-ва, что вы сотрудник ГИБДД",
-            value=proof[:1024],
+            name="🎭 Роли для выдачи",
+            value=roles_text,
             inline=False
         )
 
-        embed.add_field(
-            name="🎭 Роли для выдачи",
-            value=roles_text[:1024],
-            inline=False
-        )
+        if proof.startswith(("http://", "https://")):
+            embed.add_field(
+                name="📎 Док-ва, что вы сотрудник ГИБДД",
+                value=f"[Открыть доказательство]({proof})",
+                inline=False
+            )
+        else:
+            embed.add_field(
+                name="📎 Док-ва, что вы сотрудник ГИБДД",
+                value=f"Номер удостоверения: `{proof}`",
+                inline=False
+            )
 
         embed.set_footer(
             text="Lipton | ГИБДД • Кадровая заявка"
         )
 
         try:
-
-            await moderation_channel.send(
+            sent_message = await moderation_channel.send(
                 embed=embed,
-                view=ModerationView()
+                view=ModerationView(
+                    user_id=interaction.user.id,
+                    badge_number=badge_number,
+                    rank=rank,
+                    role_ids=[role.id for role in rank_roles],
+                    proof=proof
+                )
             )
-
         except discord.Forbidden:
-
             await interaction.response.send_message(
-                "❌ Бот не может отправить заявку.",
+                "❌ Бот не может отправить заявку в канал модерации.",
                 ephemeral=True
             )
-
             return
-
         except discord.HTTPException as error:
-
             await interaction.response.send_message(
-                f"❌ Ошибка Discord: `{error}`",
+                f"❌ Discord не принял заявку: `{error}`",
                 ephemeral=True
             )
-
             return
 
         await interaction.response.send_message(
-            "✅ **Заявка отправлена!**\n\n"
-            f"🎖️ Звание: **{rank}**\n"
-            f"🪪 Номер удостоверения: `{badge_number}`\n"
-            "📎 Док-ва получены.\n\n"
-            "📋 Заявка отправлена модераторам.",
+            "✅ **Заявка оформлена**\n\n"
+            f"🎖 Звание: **{rank}**\n"
+            f"🪪 Номер удостоверения: `{badge_number}`\n\n"
+            "📋 Заявка отправлена на проверку модератору.\n"
+            "📎 Фото прикладывать не требуется.",
             ephemeral=True
         )
 
 
 # =========================================================
-# КНОПКА «ЗАПРОСИТЬ РОЛЬ»
+# КНОПКА ЗАПРОСИТЬ РОЛЬ
 # =========================================================
 
-class RequestRoleButton(
-    discord.ui.Button
-):
+class RequestRoleButton(discord.ui.Button):
 
     def __init__(self):
-
         super().__init__(
             label="Запросить роль",
             emoji="📝",
             style=discord.ButtonStyle.primary,
-            custom_id="gibdd_request_role"
+            custom_id="request_role"
         )
 
-    async def callback(
-        self,
-        interaction: discord.Interaction
-    ):
-
+    async def callback(self, interaction: discord.Interaction):
         if interaction.guild is None:
-
             await interaction.response.send_message(
                 "❌ Эта кнопка работает только на сервере.",
                 ephemeral=True
             )
-
             return
 
+        # Настоящее popup-окно Discord — ничего не отправляется в чат.
         await interaction.response.send_modal(
             ApplicationModal()
         )
@@ -713,222 +607,122 @@ class RequestRoleButton(
 # ОСНОВНАЯ ПАНЕЛЬ
 # =========================================================
 
-class RoleRequestView(
-    discord.ui.View
-):
+class RoleRequestView(discord.ui.View):
 
     def __init__(self):
+        super().__init__(timeout=None)
+        self.add_item(RequestRoleButton())
+
+
+# =========================================================
+# КНОПКА ПРИНЯТЬ
+# =========================================================
+
+class ApproveButton(discord.ui.Button):
+
+    def __init__(
+        self,
+        user_id: int,
+        badge_number: str,
+        rank: str,
+        role_ids: list[int],
+        proof: str
+    ):
+        self.user_id = user_id
+        self.badge_number = badge_number
+        self.rank = rank
+        self.role_ids = role_ids
+        self.proof = proof
 
         super().__init__(
-            timeout=None
+            label="Принять",
+            emoji="✅",
+            style=discord.ButtonStyle.success,
+            custom_id=f"approve:{user_id}:{rank}"
         )
 
-        self.add_item(
-            RequestRoleButton()
-        )
+    async def callback(self, interaction: discord.Interaction):
+        if not isinstance(interaction.user, discord.Member):
+            return
 
-
-# =========================================================
-# ПОЛУЧЕНИЕ КАНДИДАТА ИЗ ЗАЯВКИ
-# =========================================================
-
-async def process_application(
-    interaction: discord.Interaction,
-    approved: bool
-):
-
-    if not isinstance(
-        interaction.user,
-        discord.Member
-    ):
-
-        return
-
-    if not is_moderator(
-        interaction.user
-    ):
-
-        await interaction.response.send_message(
-            "❌ У вас нет прав для обработки заявок.",
-            ephemeral=True
-        )
-
-        return
-
-    guild = interaction.guild
-
-    message = interaction.message
-
-    if (
-        guild is None
-        or message is None
-        or not message.embeds
-    ):
-
-        await interaction.response.send_message(
-            "❌ Не удалось прочитать заявку.",
-            ephemeral=True
-        )
-
-        return
-
-    embed = message.embeds[0]
-
-    candidate_value = get_embed_field(
-        embed,
-        "👤 Кандидат"
-    )
-
-    badge_value = get_embed_field(
-        embed,
-        "🪪 Номер удостоверения"
-    )
-
-    proof_value = get_embed_field(
-        embed,
-        "📎 Док-ва, что вы сотрудник ГИБДД"
-    )
-
-    rank = get_rank_from_embed(
-        embed
-    )
-
-    candidate_id = parse_user_id(
-        candidate_value
-    )
-
-    if candidate_id is None:
-
-        await interaction.response.send_message(
-            "❌ Не удалось определить кандидата.",
-            ephemeral=True
-        )
-
-        return
-
-    if rank not in RANK_ROLES:
-
-        await interaction.response.send_message(
-            "❌ Не удалось определить звание.",
-            ephemeral=True
-        )
-
-        return
-
-    member = guild.get_member(
-        candidate_id
-    )
-
-    if member is None:
-
-        try:
-
-            member = await guild.fetch_member(
-                candidate_id
-            )
-
-        except Exception:
-
-            member = None
-
-    roles = get_rank_roles(
-        guild,
-        rank
-    )
-
-    if not roles:
-
-        await interaction.response.send_message(
-            "❌ Роли выбранного звания не найдены.",
-            ephemeral=True
-        )
-
-        return
-
-    if approved:
-
-        if member is None:
-
+        if not is_moderator(interaction.user):
             await interaction.response.send_message(
-                "❌ Кандидат больше не находится на сервере.",
+                "❌ У тебя нет прав для обработки заявок.",
                 ephemeral=True
             )
+            return
 
+        guild = interaction.guild
+        if guild is None:
+            return
+
+        member = guild.get_member(self.user_id)
+        if member is None:
+            await interaction.response.send_message(
+                "❌ Пользователь не найден на сервере.",
+                ephemeral=True
+            )
             return
 
         bot_member = guild.me
-
         if bot_member is None:
-
             await interaction.response.send_message(
                 "❌ Не удалось определить роль бота.",
                 ephemeral=True
             )
-
             return
 
-        impossible_roles = [
-            role
-            for role in roles
-            if role >= bot_member.top_role
-        ]
+        roles_to_give = []
+        for role_id in self.role_ids:
+            role = guild.get_role(role_id)
+            if role is not None and role not in roles_to_give:
+                roles_to_give.append(role)
 
-        if impossible_roles:
-
+        if not roles_to_give:
             await interaction.response.send_message(
-                "❌ Бот не может выдать роли:\n\n"
-                + "\n".join(
-                    f"• **{role.name}**"
-                    for role in impossible_roles
-                )
-                + "\n\n"
-                "Подними роль бота выше ролей ГИБДД.",
+                "❌ Роли выбранного звания не найдены.",
                 ephemeral=True
             )
-
             return
+
+        # Проверяем все роли до выдачи.
+        for role in roles_to_give:
+            if role.is_default():
+                continue
+            if role >= bot_member.top_role or not role.is_assignable():
+                await interaction.response.send_message(
+                    f"❌ Бот не может выдать роль **{role.name}**.\n\n"
+                    "Подними главную роль бота выше этой роли.",
+                    ephemeral=True
+                )
+                return
 
         try:
+            roles_already = [role for role in roles_to_give if role in member.roles]
+            roles_missing = [role for role in roles_to_give if role not in member.roles]
 
-            roles_to_add = [
-                role
-                for role in roles
-                if role not in member.roles
-            ]
-
-            if roles_to_add:
-
+            if roles_missing:
                 await member.add_roles(
-                    *roles_to_add,
-                    reason=(
-                        f"Заявка ГИБДД одобрена | "
-                        f"Звание: {rank}"
-                    )
+                    *roles_missing,
+                    reason=f"Заявка ГИБДД одобрена. Звание: {self.rank}"
                 )
-
         except discord.Forbidden:
-
             await interaction.response.send_message(
-                "❌ Discord запретил выдачу ролей.\n\n"
-                "Проверь право **Управление ролями** "
-                "и иерархию ролей.",
+                "❌ Discord запретил выдачу роли.\n\n"
+                "Проверь право **Управление ролями** и положение ролей бота.",
                 ephemeral=True
             )
-
             return
-
         except discord.HTTPException as error:
-
             await interaction.response.send_message(
-                f"❌ Ошибка выдачи ролей: `{error}`",
+                f"❌ Ошибка Discord: `{error}`",
                 ephemeral=True
             )
-
             return
 
         roles_text = "\n".join(
             f"• {role.mention}"
-            for role in roles
+            for role in roles_to_give
         )
 
         await send_audit(
@@ -938,26 +732,18 @@ async def process_application(
             [
                 (
                     "👤 Сотрудник",
-                    (
-                        f"{member.mention}\n"
-                        f"`{member.id}`"
-                    ),
+                    f"{member.mention}\n`{member.id}`",
                     False
-                ),
-                (
-                    "🎖️ Звание",
-                    f"**{rank}**",
-                    True
                 ),
                 (
                     "🪪 Номер удостоверения",
-                    badge_value or "Не указан",
+                    f"`{self.badge_number}`",
                     True
                 ),
                 (
-                    "📎 Док-ва, что вы сотрудник ГИБДД",
-                    proof_value or "Не указаны",
-                    False
+                    "🎖 Звание",
+                    f"**{self.rank}**",
+                    True
                 ),
                 (
                     "🎭 Выданные роли",
@@ -974,11 +760,12 @@ async def process_application(
                     "🟢 **ПРИНЯТ**",
                     False
                 )
-            ]
+            ],
+            self.proof
         )
 
+        embed = interaction.message.embeds[0]
         embed.color = discord.Color.green()
-
         embed.add_field(
             name="📊 Результат",
             value=(
@@ -989,158 +776,192 @@ async def process_application(
         )
 
         try:
-
-            await message.edit(
+            await interaction.message.edit(
                 embed=embed,
                 view=None
             )
-
         except discord.HTTPException:
-
             pass
 
         await interaction.response.send_message(
             "✅ **Заявка принята!**\n\n"
             f"👤 {member.mention}\n"
-            f"🎖️ Звание: **{rank}**\n\n"
-            "🎭 Роли выданы.\n"
+            f"🎖 Звание: **{self.rank}**\n"
+            f"🪪 Удостоверение: `{self.badge_number}`\n\n"
+            f"🎭 Выданы роли:\n{roles_text}\n\n"
             "📋 Запись отправлена в кадровый аудит.",
             ephemeral=True
         )
 
-        return
-
-    await send_audit(
-        guild,
-        "🔴 КАДРОВЫЙ АУДИТ — ОТКЛОНЁН",
-        discord.Color.red(),
-        [
-            (
-                "👤 Кандидат",
-                candidate_value or f"`{candidate_id}`",
-                False
-            ),
-            (
-                "🎖️ Звание",
-                f"**{rank}**",
-                True
-            ),
-            (
-                "🪪 Номер удостоверения",
-                badge_value or "Не указан",
-                True
-            ),
-            (
-                "📎 Док-ва, что вы сотрудник ГИБДД",
-                proof_value or "Не указаны",
-                False
-            ),
-            (
-                "👮 Модератор",
-                interaction.user.mention,
-                False
-            ),
-            (
-                "📊 Статус",
-                "🔴 **ОТКЛОНЁН**",
-                False
-            )
-        ]
-    )
-
-    embed.color = discord.Color.red()
-
-    embed.add_field(
-        name="📊 Результат",
-        value=(
-            "🔴 **ОТКЛОНЁН**\n"
-            f"Модератор: {interaction.user.mention}"
-        ),
-        inline=False
-    )
-
-    try:
-
-        await message.edit(
-            embed=embed,
-            view=None
-        )
-
-    except discord.HTTPException:
-
-        pass
-
-    await interaction.response.send_message(
-        "❌ **Заявка отклонена.**\n\n"
-        "📋 Запись отправлена в кадровый аудит.",
-        ephemeral=True
-    )
-
 
 # =========================================================
-# КНОПКИ МОДЕРАЦИИ
+# КНОПКА ОТКЛОНИТЬ
 # =========================================================
-
-class ApproveButton(discord.ui.Button):
-    def __init__(self):
-        super().__init__(
-            label="Принять",
-            emoji="✅",
-            style=discord.ButtonStyle.success,
-            custom_id="gibdd_application_approve"
-        )
-
-    async def callback(self, interaction: discord.Interaction):
-        await process_application(interaction, True)
-
 
 class RejectButton(discord.ui.Button):
-    def __init__(self):
+
+    def __init__(
+        self,
+        user_id: int,
+        badge_number: str,
+        rank: str,
+        role_ids: list[int],
+        proof: str
+    ):
+        self.user_id = user_id
+        self.badge_number = badge_number
+        self.rank = rank
+        self.role_ids = role_ids
+        self.proof = proof
+
         super().__init__(
             label="Отклонить",
             emoji="❌",
             style=discord.ButtonStyle.danger,
-            custom_id="gibdd_application_reject"
+            custom_id=f"reject:{user_id}:{rank}"
         )
 
     async def callback(self, interaction: discord.Interaction):
-        await process_application(interaction, False)
+        if not isinstance(interaction.user, discord.Member):
+            return
 
+        if not is_moderator(interaction.user):
+            await interaction.response.send_message(
+                "❌ У тебя нет прав для обработки заявок.",
+                ephemeral=True
+            )
+            return
 
-class ModerationView(discord.ui.View):
-    def __init__(self):
-        super().__init__(timeout=None)
-        self.add_item(ApproveButton())
-        self.add_item(RejectButton())
+        guild = interaction.guild
+        if guild is None:
+            return
+
+        member = guild.get_member(self.user_id)
+        member_text = (
+            f"{member.mention}\n`{member.id}`"
+            if member else f"`{self.user_id}`"
+        )
+
+        await send_audit(
+            guild,
+            "🔴 КАДРОВЫЙ АУДИТ — ОТКЛОНЁН",
+            discord.Color.red(),
+            [
+                (
+                    "👤 Кандидат",
+                    member_text,
+                    False
+                ),
+                (
+                    "🪪 Номер удостоверения",
+                    f"`{self.badge_number}`",
+                    True
+                ),
+                (
+                    "🎖 Запрашиваемое звание",
+                    f"**{self.rank}**",
+                    True
+                ),
+                (
+                    "🎭 Роли звания",
+                    "\n".join(
+                        f"• <@&{role_id}>"
+                        for role_id in self.role_ids
+                    ),
+                    False
+                ),
+                (
+                    "👮 Модератор",
+                    interaction.user.mention,
+                    False
+                ),
+                (
+                    "📊 Статус",
+                    "🔴 **ОТКЛОНЁН**",
+                    False
+                )
+            ],
+            self.proof
+        )
+
+        embed = interaction.message.embeds[0]
+        embed.color = discord.Color.red()
+        embed.add_field(
+            name="📊 Результат",
+            value=(
+                "🔴 **ОТКЛОНЁН**\n"
+                f"Модератор: {interaction.user.mention}"
+            ),
+            inline=False
+        )
+
+        try:
+            await interaction.message.edit(
+                embed=embed,
+                view=None
+            )
+        except discord.HTTPException:
+            pass
+
+        await interaction.response.send_message(
+            "❌ **Заявка отклонена.**\n\n"
+            "📋 Запись отправлена в кадровый аудит.",
+            ephemeral=True
+        )
 
 
 # =========================================================
-# /SETUP_ROLES (С ИСПРАВЛЕНИЕМ ТАЙМАУТА DISCORD)
+# VIEW МОДЕРАЦИИ
+# =========================================================
+
+class ModerationView(discord.ui.View):
+
+    def __init__(
+        self,
+        user_id: int,
+        badge_number: str,
+        rank: str,
+        role_ids: list[int],
+        proof: str
+    ):
+        super().__init__(timeout=None)
+
+        self.add_item(
+            ApproveButton(
+                user_id,
+                badge_number,
+                rank,
+                role_ids,
+                proof
+            )
+        )
+
+        self.add_item(
+            RejectButton(
+                user_id,
+                badge_number,
+                rank,
+                role_ids,
+                proof
+            )
+        )
+
+
+# =========================================================
+# КОМАНДА /SETUP_ROLES
 # =========================================================
 
 @bot.tree.command(
     name="setup_roles",
     description="Создать панель запроса роли ГИБДД"
 )
-@app_commands.guilds(
-    discord.Object(id=GUILD_ID)
-)
 async def setup_roles(interaction: discord.Interaction):
-    await interaction.response.defer(ephemeral=True)
-
     if not isinstance(interaction.user, discord.Member):
         return
 
     if not is_moderator(interaction.user):
-        await interaction.followup.send(
+        await interaction.response.send_message(
             "❌ У тебя нет прав для этой команды.",
-            ephemeral=True
-        )
-        return
-
-    if interaction.channel is None:
-        await interaction.followup.send(
-            "❌ Не удалось определить канал.",
             ephemeral=True
         )
         return
@@ -1148,18 +969,22 @@ async def setup_roles(interaction: discord.Interaction):
     embed = discord.Embed(
         title="🟡 Lipton | ГИБДД",
         description=(
-            "## 🎖️ Запрос роли\n\n"
-            "Нажмите **📝 Запросить роль**.\n\n"
-            "После нажатия откроется отдельное "
-            "popup-окно Discord.\n\n"
-            "**В окне необходимо:**\n"
-            "🎖️ Указать звание\n"
-            "🪪 Указать номер удостоверения\n"
+            "## 🎖 Запрос роли\n\n"
+            "Нажмите **📝 Запросить роль**, чтобы открыть "
+            "приватное окно оформления заявки.\n\n"
+            "**В меню нужно:**\n"
+            "🎖 Выбрать звание\n"
+            "🪪 Написать номер удостоверения\n"
             "📎 Указать ссылку или номер удостоверения "
-            "в поле «Док-ва, что вы сотрудник ГИБДД»\n\n"
-            "📋 После отправки заявка поступит модераторам."
+            "в разделе **«Док-ва, что вы сотрудник ГИБДД»**\n\n"
+            "📷 **Фото отправлять не нужно.**\n"
+            "После проверки модератором будут выданы роли."
         ),
         color=discord.Color.gold()
+    )
+
+    embed.set_footer(
+        text="Lipton | ГИБДД • Кадровая система"
     )
 
     await interaction.channel.send(
@@ -1167,39 +992,41 @@ async def setup_roles(interaction: discord.Interaction):
         view=RoleRequestView()
     )
 
-    await interaction.followup.send(
-        "✅ Панель запроса ролей успешно отправлена!",
+    await interaction.response.send_message(
+        "✅ Панель запроса роли создана.",
         ephemeral=True
     )
 
 
 # =========================================================
-# СОБЫТИЯ И ЗАПУСК БОТА
+# READY
 # =========================================================
 
 @bot.event
 async def on_ready():
-    bot.add_view(RoleRequestView())
-    bot.add_view(ModerationView())
+    if not getattr(bot, "_views_added", False):
+        bot.add_view(RoleRequestView())
+        bot._views_added = True
 
     try:
-        guild = discord.Object(id=GUILD_ID)
-        
-        # 1. Принудительно очищаем устаревшие/дублирующиеся команды с сервера
-        bot.tree.clear_commands(guild=guild)
-        
-        # 2. Копируем актуальные команды в гильдию
-        bot.tree.copy_global_to(guild=guild)
-        
-        # 3. Синхронизируем новое дерево команд с Discord API
-        synced = await bot.tree.sync(guild=guild)
-        
-        print(f"✅ Бот успешно запущен как: {bot.user}")
-        print(f"✅ Синхронизировано команд: {len(synced)}")
+        synced = await bot.tree.sync()
+        print(f"✅ Бот запущен: {bot.user}")
+        print(f"✅ Slash-команд синхронизировано: {len(synced)}")
+    except Exception as error:
+        print(f"❌ Ошибка синхронизации: {error}")
 
-    except Exception as e:
-        print(f"❌ Ошибка при синхронизации команд: {e}")
 
+# =========================================================
+# ЗАПУСК
+# =========================================================
+
+if not TOKEN:
+    raise RuntimeError(
+        "❌ Не задан DISCORD_TOKEN. "
+        "Установи переменную окружения DISCORD_TOKEN."
+    )
+
+bot.run(TOKEN)
 
 if __name__ == "__main__":
     bot.run(TOKEN)
