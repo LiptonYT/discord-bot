@@ -426,10 +426,6 @@ class ApplicationModal(
             timeout=300
         )
 
-        # -----------------------------------------------------
-        # ПОЛЯ ВВОДА (Modal поддерживает только TextInput)
-        # -----------------------------------------------------
-
         self.rank_input = discord.ui.TextInput(
             label="🎖️ Звание",
             placeholder="Пример: Лейтенант, Майор, Сержант...",
@@ -477,10 +473,6 @@ class ApplicationModal(
 
             return
 
-        # -----------------------------------------------------
-        # ПОЛУЧАЕМ И ПРОВЕРЯЕМ ДАННЫЕ
-        # -----------------------------------------------------
-
         raw_rank = str(self.rank_input.value).strip()
         rank = find_rank(raw_rank)
 
@@ -522,10 +514,6 @@ class ApplicationModal(
 
             return
 
-        # -----------------------------------------------------
-        # РОЛИ
-        # -----------------------------------------------------
-
         rank_roles = get_rank_roles(
             guild,
             rank
@@ -539,10 +527,6 @@ class ApplicationModal(
             )
 
             return
-
-        # -----------------------------------------------------
-        # КАНАЛ МОДЕРАЦИИ
-        # -----------------------------------------------------
 
         moderation_channel = guild.get_channel(
             MODERATION_CHANNEL_ID
@@ -568,10 +552,6 @@ class ApplicationModal(
             )
 
             return
-
-        # -----------------------------------------------------
-        # ПРОВЕРКА ИЕРАРХИИ
-        # -----------------------------------------------------
 
         bot_member = guild.me
 
@@ -605,18 +585,10 @@ class ApplicationModal(
 
             return
 
-        # -----------------------------------------------------
-        # ТЕКСТ РОЛЕЙ
-        # -----------------------------------------------------
-
         roles_text = "\n".join(
             f"• {role.mention}"
             for role in rank_roles
         )
-
-        # -----------------------------------------------------
-        # EMBED ЗАЯВКИ
-        # -----------------------------------------------------
 
         embed = discord.Embed(
             title="📝 НОВАЯ ЗАЯВКА В ГИБДД",
@@ -666,10 +638,6 @@ class ApplicationModal(
             text="Lipton | ГИБДД • Кадровая заявка"
         )
 
-        # -----------------------------------------------------
-        # ОТПРАВКА МОДЕРАТОРАМ
-        # -----------------------------------------------------
-
         try:
 
             await moderation_channel.send(
@@ -694,10 +662,6 @@ class ApplicationModal(
             )
 
             return
-
-        # -----------------------------------------------------
-        # ПРИВАТНОЕ ПОДТВЕРЖДЕНИЕ НА ЭКРАНЕ
-        # -----------------------------------------------------
 
         await interaction.response.send_message(
             "✅ **Заявка отправлена!**\n\n"
@@ -881,10 +845,6 @@ async def process_application(
 
         return
 
-    # =====================================================
-    # ПРИНЯТИЕ
-    # =====================================================
-
     if approved:
 
         if member is None:
@@ -928,10 +888,6 @@ async def process_application(
 
             return
 
-        # -------------------------------------------------
-        # ВЫДАЁМ РОЛИ
-        # -------------------------------------------------
-
         try:
 
             roles_to_add = [
@@ -974,10 +930,6 @@ async def process_application(
             f"• {role.mention}"
             for role in roles
         )
-
-        # -------------------------------------------------
-        # АУДИТ
-        # -------------------------------------------------
 
         await send_audit(
             guild,
@@ -1025,10 +977,6 @@ async def process_application(
             ]
         )
 
-        # -------------------------------------------------
-        # ОБНОВЛЯЕМ ЗАЯВКУ
-        # -------------------------------------------------
-
         embed.color = discord.Color.green()
 
         embed.add_field(
@@ -1061,10 +1009,6 @@ async def process_application(
         )
 
         return
-
-    # =====================================================
-    # ОТКЛОНЕНИЕ
-    # =====================================================
 
     await send_audit(
         guild,
@@ -1134,15 +1078,11 @@ async def process_application(
 
 
 # =========================================================
-# КНОПКА ПРИНЯТЬ
+# КНОПКИ МОДЕРАЦИИ
 # =========================================================
 
-class ApproveButton(
-    discord.ui.Button
-):
-
+class ApproveButton(discord.ui.Button):
     def __init__(self):
-
         super().__init__(
             label="Принять",
             emoji="✅",
@@ -1150,27 +1090,12 @@ class ApproveButton(
             custom_id="gibdd_application_approve"
         )
 
-    async def callback(
-        self,
-        interaction: discord.Interaction
-    ):
-
-        await process_application(
-            interaction,
-            True
-        )
+    async def callback(self, interaction: discord.Interaction):
+        await process_application(interaction, True)
 
 
-# =========================================================
-# КНОПКА ОТКЛОНИТЬ
-# =========================================================
-
-class RejectButton(
-    discord.ui.Button
-):
-
+class RejectButton(discord.ui.Button):
     def __init__(self):
-
         super().__init__(
             label="Отклонить",
             emoji="❌",
@@ -1178,42 +1103,19 @@ class RejectButton(
             custom_id="gibdd_application_reject"
         )
 
-    async def callback(
-        self,
-        interaction: discord.Interaction
-    ):
-
-        await process_application(
-            interaction,
-            False
-        )
+    async def callback(self, interaction: discord.Interaction):
+        await process_application(interaction, False)
 
 
-# =========================================================
-# ПАНЕЛЬ МОДЕРАЦИИ
-# =========================================================
-
-class ModerationView(
-    discord.ui.View
-):
-
+class ModerationView(discord.ui.View):
     def __init__(self):
-
-        super().__init__(
-            timeout=None
-        )
-
-        self.add_item(
-            ApproveButton()
-        )
-
-        self.add_item(
-            RejectButton()
-        )
+        super().__init__(timeout=None)
+        self.add_item(ApproveButton())
+        self.add_item(RejectButton())
 
 
 # =========================================================
-# /SETUP_ROLES
+# /SETUP_ROLES (С ИСПРАВЛЕНИЕМ ТАЙМАУТА DISCORD)
 # =========================================================
 
 @bot.tree.command(
@@ -1221,39 +1123,27 @@ class ModerationView(
     description="Создать панель запроса роли ГИБДД"
 )
 @app_commands.guilds(
-    discord.Object(
-        id=GUILD_ID
-    )
+    discord.Object(id=GUILD_ID)
 )
-async def setup_roles(
-    interaction: discord.Interaction
-):
+async def setup_roles(interaction: discord.Interaction):
+    # ПРЕДОТВРАЩАЕМ «Приложение не отвечает»: сразу подтверждаем получение команды
+    await interaction.response.defer(ephemeral=True)
 
-    if not isinstance(
-        interaction.user,
-        discord.Member
-    ):
-
+    if not isinstance(interaction.user, discord.Member):
         return
 
-    if not is_moderator(
-        interaction.user
-    ):
-
-        await interaction.response.send_message(
+    if not is_moderator(interaction.user):
+        await interaction.followup.send(
             "❌ У тебя нет прав для этой команды.",
             ephemeral=True
         )
-
         return
 
     if interaction.channel is None:
-
-        await interaction.response.send_message(
+        await interaction.followup.send(
             "❌ Не удалось определить канал.",
             ephemeral=True
         )
-
         return
 
     embed = discord.Embed(
@@ -1278,7 +1168,8 @@ async def setup_roles(
         view=RoleRequestView()
     )
 
-    await interaction.response.send_message(
+    # Используем followup.send вместо response.send_message
+    await interaction.followup.send(
         "✅ Панель запроса ролей успешно отправлена!",
         ephemeral=True
     )
@@ -1290,13 +1181,10 @@ async def setup_roles(
 
 @bot.event
 async def on_ready():
-    # Регистрация persistent-view, чтобы кнопки работали после перезапуска бота
     bot.add_view(RoleRequestView())
     bot.add_view(ModerationView())
 
-    # Синхронизируем slash-команды
     try:
-
         guild = discord.Object(id=GUILD_ID)
         bot.tree.copy_global_to(guild=guild)
         await bot.tree.sync(guild=guild)
@@ -1304,7 +1192,6 @@ async def on_ready():
         print("✅ Команды и persistent views успешно синхронизированы.")
 
     except Exception as e:
-
         print(f"❌ Ошибка при синхронизации команд: {e}")
 
 
